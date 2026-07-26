@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import {
   ShieldCheck,
   ShieldAlert,
@@ -12,6 +12,7 @@ import {
   Link2,
   Languages,
   Mail,
+  ArrowDown,
 } from "lucide-react";
 import { analyzeEmail, type AnalysisResult, type Verdict } from "@/lib/supabase";
 
@@ -57,6 +58,11 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const formRef = useRef<HTMLFormElement>(null);
+
+  function scrollToForm() {
+    formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -111,8 +117,46 @@ export default function App() {
           </p>
         </header>
 
+        {/* Hero section */}
+        <section className="mt-14 text-center">
+          <h2 className="text-3xl font-bold tracking-tight text-slate-50 sm:text-4xl">
+            Не дай себя обмануть
+          </h2>
+          <p className="mx-auto mt-4 max-w-xl text-sm leading-relaxed text-slate-400 sm:text-base">
+            Мошенники в Казахстане активно рассылают фишинговые письма, поддельные SMS от
+            «банков» и используют соц инженерию через взлом мессенджеров. Этот сервис
+            бесплатно проверяет любое подозрительное сообщение за секунды.
+          </p>
+
+          <div className="mt-10 grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <InfoCard
+              Icon={Link2}
+              title="Подозрительная ссылка"
+              description="Домен не совпадает с официальным сайтом"
+            />
+            <InfoCard
+              Icon={Clock}
+              title="Искусственная срочность"
+              description="«оплатите немедленно», «аккаунт заблокирован»"
+            />
+            <InfoCard
+              Icon={Lock}
+              title="Просьба ввести данные"
+              description="Пароли, коды, номера карт"
+            />
+          </div>
+
+          <button
+            onClick={scrollToForm}
+            className="mt-10 inline-flex items-center gap-2 rounded-xl border border-cyan-400/30 bg-cyan-400/5 px-6 py-3 text-sm font-semibold text-cyan-300 transition-all duration-200 hover:border-cyan-400/50 hover:bg-cyan-400/10 focus:outline-none focus:ring-2 focus:ring-cyan-400/50 sm:text-base"
+          >
+            Проверить сообщение
+            <ArrowDown className="h-4 w-4" />
+          </button>
+        </section>
+
         {/* Form */}
-        <form onSubmit={handleSubmit} className="mt-10">
+        <form ref={formRef} onSubmit={handleSubmit} className="mt-16 scroll-mt-6">
           <div className="group relative">
             <div className="absolute -inset-px rounded-2xl bg-gradient-to-br from-cyan-500/20 via-transparent to-emerald-500/20 opacity-0 transition-opacity duration-300 group-focus-within:opacity-100" />
             <textarea
@@ -232,6 +276,26 @@ function FlagsList({ flags }: { flags: AnalysisResult["flags"] }) {
           );
         })}
       </div>
+    </div>
+  );
+}
+
+function InfoCard({
+  Icon,
+  title,
+  description,
+}: {
+  Icon: React.ComponentType<{ className?: string }>;
+  title: string;
+  description: string;
+}) {
+  return (
+    <div className="flex flex-col items-center rounded-2xl border border-slate-800/80 bg-slate-900/40 p-6 text-center transition-colors duration-200 hover:border-cyan-400/30">
+      <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-cyan-400/20 bg-cyan-400/5">
+        <Icon className="h-5 w-5 text-cyan-300" />
+      </div>
+      <h3 className="mt-4 text-sm font-semibold text-slate-100">{title}</h3>
+      <p className="mt-1.5 text-xs leading-relaxed text-slate-400">{description}</p>
     </div>
   );
 }
