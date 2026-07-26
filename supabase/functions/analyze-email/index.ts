@@ -58,7 +58,7 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    const apiKey = Deno.env.get("OPENROUTER_API_KEY");
+    const apiKey = Deno.env.get("OPENROUTER_KEY");
     if (!apiKey) {
       return new Response(
         JSON.stringify({ error: "OpenRouter API key не настроен" }),
@@ -96,7 +96,7 @@ Deno.serve(async (req: Request) => {
     if (!response.ok) {
       const errText = await response.text();
       return new Response(
-        JSON.stringify({ error: `Ошибка OpenRouter: ${response.status}` }),
+        JSON.stringify({ error: `Ошибка OpenRouter: ${response.status}`, detail: errText.slice(0, 200) }),
         { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
