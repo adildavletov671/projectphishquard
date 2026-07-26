@@ -60,7 +60,12 @@ export default function App() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!emailText.trim() || loading) return;
+    if (loading) return;
+    if (!emailText.trim()) {
+      setError("Вставьте текст письма для проверки");
+      setResult(null);
+      return;
+    }
     setLoading(true);
     setError(null);
     setResult(null);
@@ -121,7 +126,7 @@ export default function App() {
 
           <button
             type="submit"
-            disabled={!emailText.trim() || loading}
+            disabled={loading}
             className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-emerald-500 px-6 py-3.5 text-sm font-semibold text-slate-950 shadow-lg shadow-cyan-500/20 transition-all duration-200 hover:shadow-cyan-500/40 hover:brightness-110 focus:outline-none focus:ring-2 focus:ring-cyan-400/50 disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none sm:text-base"
           >
             {loading ? (
