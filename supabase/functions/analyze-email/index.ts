@@ -240,6 +240,18 @@ Deno.serve(async (req: Request) => {
       confidence = Math.min(confidence, 20);
     }
 
+    // --- Increment global checks counter (best-effort, never blocks the response) ---
+    if (supabaseUrl && serviceRoleKey) {
+      try {
+        const statsClient = createClient(supabaseUrl, serviceRoleKey, {
+          auth: { persistSession: false, autoRefreshToken: false },
+        });
+        await statsClient.rpc("increment_total_checks");
+      } catch {
+        // counter failure must not affect the user's result
+      }
+    }
+
     const result = {
       verdict,
       confidence,
