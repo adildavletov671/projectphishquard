@@ -1,7 +1,7 @@
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-export async function analyzeEmail(emailText: string): Promise<AnalysisResult> {
+export async function analyzeEmail(emailText: string, adminKey?: string): Promise<AnalysisResult> {
   const apiUrl = `${SUPABASE_URL}/functions/v1/analyze-email`;
   const response = await fetch(apiUrl, {
     method: "POST",
@@ -9,7 +9,7 @@ export async function analyzeEmail(emailText: string): Promise<AnalysisResult> {
       Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ emailText }),
+    body: JSON.stringify(adminKey ? { emailText, adminKey } : { emailText }),
   });
 
   const body = await response.json().catch(() => ({}));

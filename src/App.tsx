@@ -54,6 +54,7 @@ function pickFlagIcon(type: string) {
 }
 
 export default function App() {
+  const adminKey = new URLSearchParams(window.location.search).get("admin_key") ?? undefined;
   const [emailText, setEmailText] = useState("");
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<AnalysisResult | null>(null);
@@ -80,7 +81,7 @@ export default function App() {
     setResult(null);
     setRateLimited(false);
     try {
-      const res = await analyzeEmail(emailText);
+      const res = await analyzeEmail(emailText, adminKey);
       setResult(res);
       if (typeof res.remaining === "number") {
         setRemaining(res.remaining);

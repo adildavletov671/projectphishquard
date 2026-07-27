@@ -80,13 +80,21 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const { emailText } = await req.json();
+    const { emailText, adminKey } = await req.json();
     if (!emailText || typeof emailText !== "string" || emailText.trim().length === 0) {
       return new Response(
         JSON.stringify({ error: "Текст письма обязателен" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+
+    // --- Admin bypass ---
+    const configuredAdminKey = Deno.env.get("ADMIN_KEY");
+    const isAdmin =
+      !!configuredAdminKey &&
+      typeof adminKey === "string" &&
+      adminKey.length > 0 &&
+      adminKey === configuredAdminKey;
 
     // --- Rate limiting ---
     const clientIp = getClientIp(req);
@@ -95,7 +103,7 @@ Deno.serve(async (req: Request) => {
 
     let remaining = DAILY_LIMIT;
 
-    if (supabaseUrl && serviceRoleKey) {
+    if (!isAdmin && supabaseUrl && serviceRoleKey) {
       const supabase = createClient(supabaseUrl, serviceRoleKey, {
         auth: { persistSession: false, autoRefreshToken: false },
       });
@@ -237,7 +245,7 @@ Deno.serve(async (req: Request) => {
       confidence,
       flags,
       recommendation: typeof parsed.recommendation === "string" ? parsed.recommendation : "",
-      remaining,
+      remaining: isAdmin ? DAILY_LIMIT : remaining,
       limit: DAILY_LIMIT,
     };
 
