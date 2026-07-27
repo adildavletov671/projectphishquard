@@ -1,10 +1,13 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { createClient } from "npm:@supabase/supabase-js@2.45.4";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey",
 };
+
+const DAILY_LIMIT = 5;
 
 const SYSTEM_PROMPT = `Ты — эксперт по кибербезопасности, специализирующийся на выявлении фишинговых писем. Анализируй текст письма на следующие признаки фишинга:
 
@@ -52,6 +55,17 @@ const SYSTEM_PROMPT = `Ты — эксперт по кибербезопасно
 - Не добавляй в flags защитные банковские фразы или нейтральные элементы (код подтверждения от легитимного банка, ссылку легитимного домена).
 - recommendation должна быть полезной и конкретной.`;
 
+function getClientIp(req: Request): string {
+  const fwd = req.headers.get("x-forwarded-for");
+  if (fwd) {
+    const first = fwd.split(",")[0].trim();
+    if (first) return first;
+  }
+  const real = req.headers.get("x-real-ip");
+  if (real) return real.trim();
+  return "0.0.0.0";
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { status: 200, headers: corsHeaders });
@@ -74,6 +88,76 @@ Deno.serve(async (req: Request) => {
       );
     }
 
+    // --- Rate limiting ---
+    const clientIp = getClientIp(req);
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+
+    let remaining = DAILY_LIMIT;
+
+    if (supabaseUrl && serviceRoleKey) {
+      const supabase = createClient(supabaseUrl, serviceRoleKey, {
+        auth: { persistSession: false, autoRefreshToken: false },
+      });
+
+      const today = new Date().toISOString().slice(0, 10);
+
+      const { data: existing, error: selectErr } = await supabase
+        .from("rate_limits")
+        .select("id, count")
+        .eq("ip", clientIp)
+        .eq("check_date", today)
+        .maybeSingle();
+
+      if (selectErr) {
+        return new Response(
+          JSON.stringify({ error: "Не удалось проверить лимит проверок. Попробуйте позже." }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      let currentCount = existing?.count ?? 0;
+
+      if (currentCount >= DAILY_LIMIT) {
+        return new Response(
+          JSON.stringify({
+            error: "rate_limit_exceeded",
+            message: "Вы достигли дневного лимита бесплатных проверок (5 в день). Попробуйте снова завтра.",
+            remaining: 0,
+            limit: DAILY_LIMIT,
+          }),
+          { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Increment counter before calling the model so a failed model call still counts
+      if (existing) {
+        const { error: updateErr } = await supabase
+          .from("rate_limits")
+          .update({ count: currentCount + 1, updated_at: new Date().toISOString() })
+          .eq("id", existing.id);
+        if (updateErr) {
+          return new Response(
+            JSON.stringify({ error: "Не удалось обновить лимит проверок. Попробуйте позже." }),
+            { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+      } else {
+        const { error: insertErr } = await supabase
+          .from("rate_limits")
+          .insert({ ip: clientIp, check_date: today, count: 1 });
+        if (insertErr) {
+          return new Response(
+            JSON.stringify({ error: "Не удалось сохранить лимит проверок. Попробуйте позже." }),
+            { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+      }
+
+      remaining = DAILY_LIMIT - (currentCount + 1);
+    }
+
+    // --- Call OpenRouter ---
     const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -153,6 +237,8 @@ Deno.serve(async (req: Request) => {
       confidence,
       flags,
       recommendation: typeof parsed.recommendation === "string" ? parsed.recommendation : "",
+      remaining,
+      limit: DAILY_LIMIT,
     };
 
     return new Response(

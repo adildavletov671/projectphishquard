@@ -14,7 +14,7 @@ import {
   Mail,
   ArrowDown,
 } from "lucide-react";
-import { analyzeEmail, type AnalysisResult, type Verdict } from "@/lib/supabase";
+import { analyzeEmail, RateLimitError, type AnalysisResult, type Verdict } from "@/lib/supabase";
 
 const VERDICT_CONFIG: Record<
   Verdict,
@@ -58,6 +58,9 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [rateLimited, setRateLimited] = useState(false);
+  const [remaining, setRemaining] = useState<number | null>(null);
+  const [limit] = useState(5);
   const formRef = useRef<HTMLFormElement>(null);
 
   function scrollToForm() {
@@ -75,12 +78,22 @@ export default function App() {
     setLoading(true);
     setError(null);
     setResult(null);
+    setRateLimited(false);
     try {
       const res = await analyzeEmail(emailText);
       setResult(res);
+      if (typeof res.remaining === "number") {
+        setRemaining(res.remaining);
+      }
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "";
-      setError(msg === "invalid_json" ? "Не удалось проанализировать, попробуйте ещё раз" : "Не удалось проанализировать, попробуйте ещё раз");
+      if (err instanceof RateLimitError) {
+        setError(err.message);
+        setRateLimited(true);
+        setRemaining(0);
+      } else {
+        const msg = err instanceof Error ? err.message : "";
+        setError(msg === "invalid_json" ? "Не удалось проанализировать, попробуйте ещё раз" : "Не удалось проанализировать, попробуйте ещё раз");
+      }
     } finally {
       setLoading(false);
     }
@@ -185,11 +198,22 @@ export default function App() {
               </>
             )}
           </button>
+
+          {remaining !== null && !rateLimited && (
+            <p className="mt-3 text-center text-xs text-slate-500">
+              Осталось проверок сегодня: <span className="font-semibold text-cyan-400">{remaining}</span> из {limit}
+            </p>
+          )}
+          {rateLimited && (
+            <p className="mt-3 text-center text-xs text-amber-400/80">
+              Осталось проверок сегодня: <span className="font-semibold">0</span> из {limit}
+            </p>
+          )}
         </form>
 
         {/* Error */}
         {error && (
-          <div className="mt-6 flex items-center gap-2.5 rounded-xl border border-red-500/40 bg-red-950/30 px-4 py-3 text-sm text-red-300">
+          <div className={`mt-6 flex items-center gap-2.5 rounded-xl border px-4 py-3 text-sm ${rateLimited ? "border-amber-500/40 bg-amber-950/30 text-amber-300" : "border-red-500/40 bg-red-950/30 text-red-300"}`}>
             <AlertTriangle className="h-4 w-4 shrink-0" />
             {error}
           </div>

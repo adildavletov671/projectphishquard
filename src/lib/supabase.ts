@@ -12,25 +12,38 @@ export async function analyzeEmail(emailText: string): Promise<AnalysisResult> {
     body: JSON.stringify({ emailText }),
   });
 
+  const body = await response.json().catch(() => ({}));
+
+  if (response.status === 429 || body?.error === "rate_limit_exceeded") {
+    throw new RateLimitError(body?.message ?? "Вы достигли дневного лимита бесплатных проверок (5 в день). Попробуйте снова завтра.");
+  }
+
   if (!response.ok) {
-    const body = await response.json().catch(() => ({}));
     if (body?.error === "invalid_json") {
       throw new Error("invalid_json");
     }
     throw new Error("request_failed");
   }
 
-  const data = await response.json();
-  if (!data.verdict || !Array.isArray(data.flags)) {
+  if (!body.verdict || !Array.isArray(body.flags)) {
     throw new Error("invalid_json");
   }
 
   return {
-    verdict: data.verdict,
-    confidence: data.confidence,
-    flags: data.flags,
-    recommendation: data.recommendation,
+    verdict: body.verdict,
+    confidence: body.confidence,
+    flags: body.flags,
+    recommendation: body.recommendation,
+    remaining: typeof body.remaining === "number" ? body.remaining : undefined,
+    limit: typeof body.limit === "number" ? body.limit : undefined,
   };
+}
+
+export class RateLimitError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "RateLimitError";
+  }
 }
 
 export type Verdict = "dangerous" | "suspicious" | "safe";
@@ -45,4 +58,6 @@ export interface AnalysisResult {
   confidence: number;
   flags: Flag[];
   recommendation: string;
+  remaining?: number;
+  limit?: number;
 }
