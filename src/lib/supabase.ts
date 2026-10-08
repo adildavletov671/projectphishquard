@@ -1,21 +1,28 @@
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-export async function analyzeEmail(emailText: string, adminKey?: string): Promise<AnalysisResult> {
+export async function analyzeEmail(
+  emailText: string,
+  adminKey?: string,
+  lang?: string
+): Promise<AnalysisResult> {
   const apiUrl = `${SUPABASE_URL}/functions/v1/analyze-email`;
+  const payload: Record<string, string> = { emailText };
+  if (adminKey) payload.adminKey = adminKey;
+  if (lang) payload.lang = lang;
   const response = await fetch(apiUrl, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify(adminKey ? { emailText, adminKey } : { emailText }),
+    body: JSON.stringify(payload),
   });
 
   const body = await response.json().catch(() => ({}));
 
   if (response.status === 429 || body?.error === "rate_limit_exceeded") {
-    throw new RateLimitError(body?.message ?? "Вы достигли дневного лимита бесплатных проверок (5 в день). Попробуйте снова завтра.");
+    throw new RateLimitError(body?.message ?? "rate_limit_exceeded");
   }
 
   if (!response.ok) {

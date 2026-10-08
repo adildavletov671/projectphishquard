@@ -13,48 +13,84 @@ import {
   Languages,
   Mail,
   ArrowDown,
+  Check,
 } from "lucide-react";
 import { analyzeEmail, RateLimitError, type AnalysisResult, type Verdict } from "@/lib/supabase";
+import { useI18n, LANGUAGES, type Language } from "@/lib/i18n";
 
-const VERDICT_CONFIG: Record<
-  Verdict,
-  { label: string; bg: string; border: string; glow: string; Icon: typeof ShieldCheck }
-> = {
-  dangerous: {
-    label: "Опасно",
-    bg: "bg-red-950/40",
-    border: "border-red-500/50",
-    glow: "shadow-[0_0_40px_-8px_rgba(239,68,68,0.5)]",
-    Icon: ShieldAlert,
-  },
-  suspicious: {
-    label: "Подозрительно",
-    bg: "bg-amber-950/40",
-    border: "border-amber-500/50",
-    glow: "shadow-[0_0_40px_-8px_rgba(245,158,11,0.5)]",
-    Icon: ShieldQuestion,
-  },
-  safe: {
-    label: "Похоже, безопасно",
-    bg: "bg-emerald-950/40",
-    border: "border-emerald-500/50",
-    glow: "shadow-[0_0_40px_-8px_rgba(16,185,129,0.5)]",
-    Icon: ShieldCheck,
-  },
-};
+function useVerdictConfig(t: (key: string) => string) {
+  return {
+    dangerous: {
+      label: t("verdictDangerous"),
+      bg: "bg-red-950/40",
+      border: "border-red-500/50",
+      glow: "shadow-[0_0_40px_-8px_rgba(239,68,68,0.5)]",
+      Icon: ShieldAlert,
+    },
+    suspicious: {
+      label: t("verdictSuspicious"),
+      bg: "bg-amber-950/40",
+      border: "border-amber-500/50",
+      glow: "shadow-[0_0_40px_-8px_rgba(245,158,11,0.5)]",
+      Icon: ShieldQuestion,
+    },
+    safe: {
+      label: t("verdictSafe"),
+      bg: "bg-emerald-950/40",
+      border: "border-emerald-500/50",
+      glow: "shadow-[0_0_40px_-8px_rgba(16,185,129,0.5)]",
+      Icon: ShieldCheck,
+    },
+  } as const;
+}
 
-function pickFlagIcon(type: string) {
-  const t = type.toLowerCase();
-  if (t.includes("срочност") || t.includes("давлен") || t.includes("угроз")) return Clock;
-  if (t.includes("домен") || t.includes("отправител") || t.includes("brand")) return Mail;
-  if (t.includes("ссылк") || t.includes("url") || t.includes("ip")) return Link2;
-  if (t.includes("парол") || t.includes("карт") || t.includes("код") || t.includes("данн")) return Lock;
-  if (t.includes("граммат") || t.includes("стилист") || t.includes("аномал")) return Languages;
-  return AlertTriangle;
+function LanguageSwitcher({
+  lang,
+  setLang,
+}: {
+  lang: Language;
+  setLang: (l: Language) => void;
+}) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div className="fixed right-4 top-4 z-50 sm:right-6 sm:top-6">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        onBlur={() => setTimeout(() => setOpen(false), 150)}
+        className="flex items-center gap-1.5 rounded-lg border border-slate-700/80 bg-slate-900/80 px-3 py-2 text-xs font-medium text-slate-300 backdrop-blur-sm transition-colors hover:border-cyan-400/40 hover:text-cyan-300 focus:outline-none focus:ring-2 focus:ring-cyan-400/30"
+        aria-label="Language"
+      >
+        <Languages className="h-4 w-4" />
+        {LANGUAGES.find((l) => l.code === lang)?.label}
+      </button>
+      {open && (
+        <div className="absolute right-0 mt-2 w-28 overflow-hidden rounded-lg border border-slate-700/80 bg-slate-900/95 py-1 shadow-xl shadow-black/50 backdrop-blur-md">
+          {LANGUAGES.map((l) => (
+            <button
+              key={l.code}
+              onMouseDown={() => {
+                setLang(l.code);
+                setOpen(false);
+              }}
+              className={`flex w-full items-center justify-between px-3 py-2 text-xs font-medium transition-colors hover:bg-cyan-400/10 ${
+                lang === l.code ? "text-cyan-300" : "text-slate-300"
+              }`}
+            >
+              {l.label}
+              {lang === l.code && <Check className="h-3.5 w-3.5" />}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 export default function App() {
   const adminKey = new URLSearchParams(window.location.search).get("admin_key") ?? undefined;
+  const { lang, setLang, t } = useI18n();
+  const verdictConfig = useVerdictConfig(t);
   const [emailText, setEmailText] = useState("");
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<AnalysisResult | null>(null);
@@ -72,7 +108,7 @@ export default function App() {
     e.preventDefault();
     if (loading) return;
     if (!emailText.trim()) {
-      setError("Вставьте текст письма для проверки");
+      setError(t("errorEmpty"));
       setResult(null);
       return;
     }
@@ -81,19 +117,18 @@ export default function App() {
     setResult(null);
     setRateLimited(false);
     try {
-      const res = await analyzeEmail(emailText, adminKey);
+      const res = await analyzeEmail(emailText, adminKey, lang);
       setResult(res);
       if (typeof res.remaining === "number") {
         setRemaining(res.remaining);
       }
     } catch (err) {
       if (err instanceof RateLimitError) {
-        setError(err.message);
+        setError(err.message === "rate_limit_exceeded" ? t("errorRateLimit") : err.message);
         setRateLimited(true);
         setRemaining(0);
       } else {
-        const msg = err instanceof Error ? err.message : "";
-        setError(msg === "invalid_json" ? "Не удалось проанализировать, попробуйте ещё раз" : "Не удалось проанализировать, попробуйте ещё раз");
+        setError(t("errorGeneric"));
       }
     } finally {
       setLoading(false);
@@ -114,12 +149,14 @@ export default function App() {
       {/* Top glow */}
       <div className="pointer-events-none fixed inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-cyan-400/60 to-transparent" />
 
+      <LanguageSwitcher lang={lang} setLang={setLang} />
+
       <div className="relative mx-auto max-w-3xl px-5 py-12 sm:py-16">
         {/* Header */}
         <header className="text-center">
           <div className="inline-flex items-center justify-center gap-2 rounded-full border border-cyan-400/30 bg-cyan-400/5 px-4 py-1.5 text-xs font-medium text-cyan-300">
             <ShieldCheck className="h-3.5 w-3.5" />
-            Анализатор фишинга
+            {t("badge")}
           </div>
           <h1 className="mt-5 text-4xl font-bold tracking-tight sm:text-5xl">
             <span className="bg-gradient-to-r from-cyan-300 via-emerald-300 to-cyan-400 bg-clip-text text-transparent">
@@ -127,36 +164,34 @@ export default function App() {
             </span>
           </h1>
           <p className="mx-auto mt-3 max-w-md text-sm text-slate-400 sm:text-base">
-            Проверь письмо на признаки фишинга за секунды
+            {t("subtitle")}
           </p>
         </header>
 
         {/* Hero section */}
         <section className="mt-14 text-center">
           <h2 className="text-3xl font-bold tracking-tight text-slate-50 sm:text-4xl">
-            Не дай себя обмануть
+            {t("heroTitle")}
           </h2>
           <p className="mx-auto mt-4 max-w-xl text-sm leading-relaxed text-slate-400 sm:text-base">
-            Мошенники в Казахстане активно рассылают фишинговые письма, поддельные SMS от
-            «банков» и используют соц инженерию через взлом мессенджеров. Этот сервис
-            бесплатно проверяет любое подозрительное сообщение за секунды.
+            {t("heroDescription")}
           </p>
 
           <div className="mt-10 grid grid-cols-1 gap-4 sm:grid-cols-3">
             <InfoCard
               Icon={Link2}
-              title="Подозрительная ссылка"
-              description="Домен не совпадает с официальным сайтом"
+              title={t("card1Title")}
+              description={t("card1Description")}
             />
             <InfoCard
               Icon={Clock}
-              title="Искусственная срочность"
-              description="«оплатите немедленно», «аккаунт заблокирован»"
+              title={t("card2Title")}
+              description={t("card2Description")}
             />
             <InfoCard
               Icon={Lock}
-              title="Просьба ввести данные"
-              description="Пароли, коды, номера карт"
+              title={t("card3Title")}
+              description={t("card3Description")}
             />
           </div>
 
@@ -164,7 +199,7 @@ export default function App() {
             onClick={scrollToForm}
             className="mt-10 inline-flex items-center gap-2 rounded-xl border border-cyan-400/30 bg-cyan-400/5 px-6 py-3 text-sm font-semibold text-cyan-300 transition-all duration-200 hover:border-cyan-400/50 hover:bg-cyan-400/10 focus:outline-none focus:ring-2 focus:ring-cyan-400/50 sm:text-base"
           >
-            Проверить сообщение
+            {t("checkButton")}
             <ArrowDown className="h-4 w-4" />
           </button>
         </section>
@@ -176,7 +211,7 @@ export default function App() {
             <textarea
               value={emailText}
               onChange={(e) => setEmailText(e.target.value)}
-              placeholder="Вставь сюда текст подозрительного письма…"
+              placeholder={t("placeholder")}
               rows={8}
               className="relative w-full resize-y rounded-2xl border border-slate-700/80 bg-slate-900/60 p-5 text-sm leading-relaxed text-slate-100 placeholder:text-slate-600 shadow-2xl shadow-black/40 backdrop-blur-sm transition-colors focus:border-cyan-400/60 focus:outline-none sm:text-base"
             />
@@ -190,24 +225,24 @@ export default function App() {
             {loading ? (
               <>
                 <Loader2 className="h-4 w-4 animate-spin" />
-                Анализирую…
+                {t("analyzing")}
               </>
             ) : (
               <>
                 <Send className="h-4 w-4" />
-                Проверить
+                {t("analyzeButton")}
               </>
             )}
           </button>
 
           {remaining !== null && !rateLimited && (
             <p className="mt-3 text-center text-xs text-slate-500">
-              Осталось проверок сегодня: <span className="font-semibold text-cyan-400">{remaining}</span> из {limit}
+              {t("remaining")} <span className="font-semibold text-cyan-400">{remaining}</span> {t("of")} {limit}
             </p>
           )}
           {rateLimited && (
             <p className="mt-3 text-center text-xs text-amber-400/80">
-              Осталось проверок сегодня: <span className="font-semibold">0</span> из {limit}
+              {t("remaining")} <span className="font-semibold">0</span> {t("of")} {limit}
             </p>
           )}
         </form>
@@ -223,23 +258,31 @@ export default function App() {
         {/* Result */}
         {result && (
           <div className="mt-8 space-y-4">
-            <VerdictCard result={result} />
-            <FlagsList flags={result.flags} />
-            <RecommendationBlock recommendation={result.recommendation} />
+            <VerdictCard result={result} config={verdictConfig} t={t} />
+            <FlagsList flags={result.flags} t={t} />
+            <RecommendationBlock recommendation={result.recommendation} t={t} />
           </div>
         )}
 
         {/* Footer */}
         <footer className="mt-16 text-center text-xs text-slate-600">
-          Результат носит рекомендательный характер и не гарантирует точности.
+          {t("footer")}
         </footer>
       </div>
     </div>
   );
 }
 
-function VerdictCard({ result }: { result: AnalysisResult }) {
-  const cfg = VERDICT_CONFIG[result.verdict];
+function VerdictCard({
+  result,
+  config,
+  t,
+}: {
+  result: AnalysisResult;
+  config: ReturnType<typeof useVerdictConfig>;
+  t: (key: string) => string;
+}) {
+  const cfg = config[result.verdict];
   const { Icon } = cfg;
 
   return (
@@ -251,11 +294,11 @@ function VerdictCard({ result }: { result: AnalysisResult }) {
           <Icon className="h-7 w-7 text-slate-100" />
         </div>
         <div className="min-w-0 flex-1">
-          <p className="text-xs uppercase tracking-wider text-slate-400">Вердикт</p>
+          <p className="text-xs uppercase tracking-wider text-slate-400">{t("verdictLabel")}</p>
           <p className="text-2xl font-bold text-slate-50 sm:text-3xl">{cfg.label}</p>
         </div>
         <div className="text-right">
-          <p className="text-xs uppercase tracking-wider text-slate-400">Уверенность</p>
+          <p className="text-xs uppercase tracking-wider text-slate-400">{t("confidenceLabel")}</p>
           <p className="text-2xl font-bold tabular-nums text-slate-50 sm:text-3xl">
             {result.confidence}%
           </p>
@@ -265,12 +308,18 @@ function VerdictCard({ result }: { result: AnalysisResult }) {
   );
 }
 
-function FlagsList({ flags }: { flags: AnalysisResult["flags"] }) {
+function FlagsList({
+  flags,
+  t,
+}: {
+  flags: AnalysisResult["flags"];
+  t: (key: string) => string;
+}) {
   if (flags.length === 0) {
     return (
       <div className="flex items-center gap-2.5 rounded-xl border border-emerald-500/30 bg-emerald-950/20 px-4 py-3 text-sm text-emerald-300">
         <ShieldCheck className="h-4 w-4 shrink-0" />
-        Подозрительных признаков не обнаружено.
+        {t("noFlags")}
       </div>
     );
   }
@@ -278,7 +327,7 @@ function FlagsList({ flags }: { flags: AnalysisResult["flags"] }) {
   return (
     <div className="space-y-2.5">
       <p className="px-1 text-xs font-medium uppercase tracking-wider text-slate-500">
-        Обнаруженные признаки ({flags.length})
+        {t("flagsTitle")} ({flags.length})
       </p>
       <div className="space-y-2.5">
         {flags.map((flag, i) => {
@@ -325,7 +374,13 @@ function InfoCard({
   );
 }
 
-function RecommendationBlock({ recommendation }: { recommendation: string }) {
+function RecommendationBlock({
+  recommendation,
+  t,
+}: {
+  recommendation: string;
+  t: (key: string) => string;
+}) {
   if (!recommendation) return null;
   return (
     <div className="flex gap-3 rounded-xl border border-cyan-400/20 bg-cyan-950/20 p-4">
@@ -334,10 +389,26 @@ function RecommendationBlock({ recommendation }: { recommendation: string }) {
       </div>
       <div className="min-w-0">
         <p className="text-xs font-medium uppercase tracking-wider text-cyan-400">
-          Рекомендация
+          {t("recommendationLabel")}
         </p>
         <p className="mt-1 text-sm leading-relaxed text-slate-300">{recommendation}</p>
       </div>
     </div>
   );
+}
+
+function pickFlagIcon(type: string) {
+  const t = type.toLowerCase();
+  const urgency = ["срочност", "давлен", "угроз", "асығыст", "қауіп", "urgency", "urgent", "threat", "pressure", "жедел"];
+  const domain = ["домен", "отправител", "brand", "домен", "жіберуші", "domain", "sender", "brand"];
+  const link = ["ссылк", "url", "ip", "сілтеме", "link", "url", "ip"];
+  const data = ["парол", "карт", "код", "данн", "құпиясөз", "карта", "код", "дерек", "password", "card", "code", "data"];
+  const grammar = ["граммат", "стилист", "аномал", "грамматик", "стиль", "аномалия", "grammar", "style", "anomal"];
+
+  if (urgency.some((kw) => t.includes(kw))) return Clock;
+  if (domain.some((kw) => t.includes(kw))) return Mail;
+  if (link.some((kw) => t.includes(kw))) return Link2;
+  if (data.some((kw) => t.includes(kw))) return Lock;
+  if (grammar.some((kw) => t.includes(kw))) return Languages;
+  return AlertTriangle;
 }

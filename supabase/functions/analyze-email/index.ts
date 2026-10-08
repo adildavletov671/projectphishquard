@@ -9,7 +9,10 @@ const corsHeaders = {
 
 const DAILY_LIMIT = 5;
 
-const SYSTEM_PROMPT = `Ты — эксперт по кибербезопасности, специализирующийся на выявлении фишинговых писем. Анализируй текст письма на следующие признаки фишинга:
+type Lang = "ru" | "kz" | "en";
+
+const SYSTEM_PROMPTS: Record<Lang, string> = {
+  ru: `Ты — эксперт по кибербезопасности, специализирующийся на выявлении фишинговых писем. Анализируй текст письма на следующие признаки фишинга:
 
 1. Давление и создание срочности (например, "аккаунт заблокирован", "оплатите немедленно", угрозы).
 2. Несоответствие домена отправителя заявленному бренду (если email отправителя указан в тексте).
@@ -46,14 +49,113 @@ const SYSTEM_PROMPT = `Ты — эксперт по кибербезопасно
 {
   "verdict": "dangerous" | "suspicious" | "safe",
   "confidence": число от 0 до 100,
-  "flags": [{"type": "краткое название признака", "description": "объяснение простыми словами на русском"}],
+  "flags": [{"type": "краткое название признака на русском", "description": "объяснение простыми словами на русском"}],
   "recommendation": "короткая рекомендация пользователю на русском"
 }
 
 Дополнительные правила:
 - flags должен быть пустым массивом, если признаков фишинга нет.
 - Не добавляй в flags защитные банковские фразы или нейтральные элементы (код подтверждения от легитимного банка, ссылку легитимного домена).
-- recommendation должна быть полезной и конкретной.`;
+- recommendation должна быть полезной и конкретной.`,
+
+  kz: `Сіз — фишинг хаттарын анықтауға маманданған киберқауіпсіздік сарапшысысыз. Хат мәтінін келесі фишинг белгілеріне талдаңыз:
+
+1. Қысым және асығыстық жасау (мысалы, "аккаунт бұғатталды", "жедел төлеңіз", қорқытулар).
+2. Жіберуші доменінің жарнамаланған брендке сәйкес келмеуі (егер жіберуші email мәтінде көрсетілген болса).
+3. Күдікті сілтемелер (жасырылған URL, домендер орнына IP-мекенжайлар, қате жазылған, заңды домендерге ұқсас домендер).
+4. Құпиясөздер, карта нөмірлері, растау кодтары немесе басқа да құпия деректерді беру талаптары.
+5. Ресми хат-хабарға тән емес грамматикалық және стилистикалық аномалиялар.
+
+ЖАЛҒАН ОҚИҒАЛАРДЫ АЗАЙТУ ҮШІН МАҢЫЗДЫ ЕРЕЖЕЛЕР:
+
+А. ЗАҢДЫ ҚОРҒАУ ФРАЗАЛАРЫ — ФИШИНГ БЕЛГІСІ ЕМЕС:
+   "кодты ешкімге айтпаңыз, тіпті банк қызметкеріне де", "CVV кодты ешқашан хабарламаңыз", "бұл кодты ешкімге айтпаңыз" сияқты формулировкалар — нағыз банктер мен сервистердің СТАНДАРТТЫ қорғау фразалары. Бұл ЛЕГИТИМДІЛІК БЕЛГІСІ, фишинг емес. Мұндай фразаларды күдікті ретінде белгілемеңіз.
+
+Ә. ТРАНЗАКЦИЯЛЫҚ ХАБАРЛАМАЛАР — ӘДЕТТЕ ЛЕГИТИМДІ:
+   Растау коды бар қысқа SMS/хаттар, төлем, жеткізілу, есепке алу туралы хабарламалар — Қазақстандағы типтік легитимді формат. kaspi.kz, forte.kz, halyk.kz, jusan.kz, onay, eurasian bank сияқты ресми домендер — легитимді. Мұндай хабарламаны тек сілтеме немесе растау коды бар болғаны үшін ғана күдікті деп санамаңыз.
+
+Б. БЕЛГІЛЕРДІҢ КОМБИНАЦИЯСЫ, ЖЕКЕЛЕНГЕН БЕЙТАРАП ФАКТОРЛАР ЕМЕС:
+   Фишинг белгісі — КОМБИНАЦИЯ: күдікті/беймәлім домен + қысым/асығыстық + деректерді енгізу талабы. Тек бір бейтарап белгінің (жай сілтеме, жай код, жай банк атауы) болуы жоғары confidence бермейді және verdict "suspicious" немесе "dangerous" жасамайды.
+
+В. ВЕРДИКТ ЕРЕЖЕСІ:
+   - Хабарламада деректерді беру туралы анық талап, күдікті/беймәлім домен немесе қысым/асығыстық ЖОҚ болса — verdict "safe" болуы тиіс.
+   - Тек бір бейтарап фактор табылса (мысалы, фишинг контексі жоқ жай сілтеме) — verdict "safe", confidence 30-дан аспауы тиіс.
+   - "suspicious" тек екі немесе одан көп қауіпті факторлар болғанда, бірақ анық деректер талабы немесе күдікті домен жоқ болғанда ғана.
+   - "dangerous" — кемінде үш маңызды белгінің комбинациясы (қысым + күдікті домен + деректер талабы немесе ұқсас).
+
+Г. FLAGS ПЕН VERDICT СӘЙКЕСТІГІ:
+   - flags бос массив болса — verdict МИҚДАТТА "safe", confidence 20-дан аспауы тиіс.
+   - confidence тапылған флагтардың саны мен маңыздылығына қатаң сәйкес келуі тиіс:
+     * 0 флаг → safe, confidence 5-20
+     * 1 бейтарап флаг → safe, confidence 15-35
+     * 2 флаг → suspicious, confidence 40-65
+     * 3+ маңызды флаг → dangerous, confidence 70-95
+
+СТРОГО JSON форматында жауап беріңіз (markdown жоқ, түсініктеме жоқ, тек құнды JSON):
+{
+  "verdict": "dangerous" | "suspicious" | "safe",
+  "confidence": 0-100 аралығындағы сан,
+  "flags": [{"type": "қазақ тіліндегі белгінің қысқа атауы", "description": "қазақ тілінде қарапайым сөздермен түсіндіру"}],
+  "recommendation": "қазақ тілінде пайдаланушыға қысқа ұсыныс"
+}
+
+Қосымша ережелер:
+- flags бос массив болуы тиіс, егер фишинг белгілері болмаса.
+- flags-қа қорғау банк фразаларын немесе бейтарап элементтерді (заңды банкіден растау коды, заңды домен сілтемесін) қоспаңыз.
+- recommendation пайдалы және нақты болуы тиіс.`,
+
+  en: `You are a cybersecurity expert specializing in detecting phishing emails. Analyze the email text for the following phishing signs:
+
+1. Pressure and urgency creation (e.g., "account blocked", "pay immediately", threats).
+2. Sender domain mismatch with the claimed brand (if the sender's email is mentioned in the text).
+3. Suspicious links (disguised URLs, IP addresses instead of domains, typo-squatted domains resembling legitimate ones).
+4. Requests for passwords, card numbers, verification codes, or other confidential data.
+5. Grammatical and stylistic anomalies atypical for official correspondence.
+
+IMPORTANT RULES TO REDUCE FALSE POSITIVES:
+
+A. LEGITIMATE PROTECTIVE PHRASES — NOT A PHISHING SIGN:
+   Phrases like "never share your code, not even with a bank employee", "never disclose your CVV code", "do not share this code with anyone" are STANDARD protective phrases from real banks and services. This is a sign of LEGITIMACY, not phishing. Never flag such phrases as suspicious on their own.
+
+B. TRANSACTIONAL MESSAGES — USUALLY LEGITIMATE:
+   Short SMS/emails with a verification code, payment notification, delivery, deposit — typical legitimate format, especially in Kazakhstan. Official domains kaspi.kz, forte.kz, halyk.kz, jusan.kz, onay, eurasian bank and similar are legitimate. Do not consider such a message suspicious SOLELY because of a link or verification code.
+
+C. COMBINATION OF SIGNS, NOT SINGLE NEUTRAL FACTORS:
+   A phishing sign is a COMBINATION: suspicious/unfamiliar domain + pressure/urgency + request for data. Having only one neutral sign (just a link, just a code, just a mention of a bank) should NOT yield high confidence and should NOT make the verdict "suspicious" or "dangerous".
+
+D. VERDICT RULES:
+   - If the message has NO explicit request for data, NO suspicious/unfamiliar domain, and NO pressure/urgency — verdict should be "safe".
+   - If only one neutral factor is found (e.g., just a link without phishing context) — verdict should be "safe" with low confidence (no higher than 30).
+   - "suspicious" is appropriate only with at least two concerning factors, but without an explicit data request or suspicious domain.
+   - "dangerous" — a combination of at least three serious signs (pressure + suspicious domain + data request, or similar).
+
+E. FLAGS AND VERDICT CONSISTENCY:
+   - If flags is an empty array — verdict MUST be "safe", confidence no higher than 20.
+   - confidence should strictly correspond to the number and severity of found flags:
+     * 0 flags → safe, confidence 5-20
+     * 1 neutral flag → safe, confidence 15-35
+     * 2 flags → suspicious, confidence 40-65
+     * 3+ serious flags → dangerous, confidence 70-95
+
+Respond STRICTLY in JSON format (no markdown, no explanations, only valid JSON):
+{
+  "verdict": "dangerous" | "suspicious" | "safe",
+  "confidence": number from 0 to 100,
+  "flags": [{"type": "short sign name in English", "description": "simple explanation in English"}],
+  "recommendation": "short recommendation to the user in English"
+}
+
+Additional rules:
+- flags should be an empty array if there are no phishing signs.
+- Do not add protective banking phrases or neutral elements (verification code from a legitimate bank, link of a legitimate domain) to flags.
+- recommendation should be useful and specific.`,
+};
+
+const USER_PROMPTS: Record<Lang, string> = {
+  ru: "Проанализируй следующее письмо на признаки фишинга:\\n\\n{email}",
+  kz: "Келесі хатты фишинг белгілеріне талдаңыз:\\n\\n{email}",
+  en: "Analyze the following email for phishing signs:\\n\\n{email}",
+};
 
 function getClientIp(req: Request): string {
   const fwd = req.headers.get("x-forwarded-for");
@@ -80,13 +182,16 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const { emailText, adminKey } = await req.json();
+    const { emailText, adminKey, lang } = await req.json();
     if (!emailText || typeof emailText !== "string" || emailText.trim().length === 0) {
       return new Response(
         JSON.stringify({ error: "Текст письма обязателен" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+
+    const validLangs: Lang[] = ["ru", "kz", "en"];
+    const effectiveLang: Lang = validLangs.includes(lang) ? lang : "ru";
 
     // --- Admin bypass ---
     const configuredAdminKey = Deno.env.get("ADMIN_KEY");
@@ -177,8 +282,8 @@ Deno.serve(async (req: Request) => {
       body: JSON.stringify({
         model: "openai/gpt-4o-mini",
         messages: [
-          { role: "system", content: SYSTEM_PROMPT },
-          { role: "user", content: `Проанализируй следующее письмо на признаки фишинга:\n\n${emailText}` },
+          { role: "system", content: SYSTEM_PROMPTS[effectiveLang] },
+          { role: "user", content: USER_PROMPTS[effectiveLang].replace("{email}", emailText) },
         ],
         temperature: 0.2,
         response_format: { type: "json_object" },
