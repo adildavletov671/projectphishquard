@@ -174,7 +174,7 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    const apiKey = Deno.env.get("OPENROUTER_KEY");
+    const apiKey = Deno.env.get("OPENROUTER_API_KEY");
     if (!apiKey) {
       return new Response(
         JSON.stringify({ error: "OpenRouter API key не настроен" }),
