@@ -14,7 +14,7 @@
 - Переменные фронтенда (`.env` локально и Environment Variables в Vercel, не коммитить): `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`
   - `VITE_SUPABASE_ANON_KEY` — **legacy anon key** (JWT `eyJ...`, Settings → API Keys → Legacy). Новый `sb_publishable_...` не подходит: у функции `verify_jwt = true`, шлюз пропустит только JWT
   - Vite встраивает `VITE_*` в сборку: после смены переменных в Vercel нужен Redeploy, локально — перезапуск `npm run dev`
-- Прод (Vercel) переключён на этот проект 2026-11-10. Старый Supabase-проект от Bolt (не виден в моём дашборде) больше не используем; откат — вернуть старые `VITE_*` в Vercel + Redeploy
+- Прод (Vercel) переключён на этот проект 2026-11-10. Старый Supabase-проект от Bolt (не виден в моём дашборде) больше не используем. Отката на него НЕТ: его ключ OpenRouter удалён 2026-11-10, функция там больше не работает
 
 ### Важно про безопасность
 - Секреты Edge Function (Dashboard → Edge Functions → Secrets), значения вводит только пользователь, никогда не выводить:
@@ -74,7 +74,6 @@ CLI стоит как dev-зависимость, запуск через `npx s
 2. Реальная подписка с оплатой (Stripe или казахстанский аналог) — позже.
 3. Мелкие долги:
    - `getClientIp` берёт первый IP из `X-Forwarded-For` — проверить, не может ли клиент подставить его сам и обойти лимит
-   - отозвать старый ключ OpenRouter из Bolt-проекта на openrouter.ai
    - 3 старые ошибки `npm run lint` (неиспользуемый `Verdict` в App.tsx, `let` → `const` в функции)
 
 ## Как работаем
