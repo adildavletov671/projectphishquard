@@ -14,7 +14,7 @@
   "analyzeButton": "Check",
   "analyzing": "Analyzing…",
   "remaining": "Checks left today:",
-  "of": "of",
+  "remainingOf": "{remaining} of {limit}",
   "verdictLabel": "Verdict",
   "confidenceLabel": "Confidence",
   "flagsTitle": "Detected signs",

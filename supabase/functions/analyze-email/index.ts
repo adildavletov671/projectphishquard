@@ -28,6 +28,12 @@ const SYSTEM_PROMPTS: Record<Lang, string> = {
 Б. ТРАНЗАКЦИОННЫЕ СООБЩЕНИЯ — ОБЫЧНО ЛЕГИТИМНЫ:
    Короткие SMS/письма с кодом подтверждения, уведомлением об оплате, доставке, зачислении — типичный легитимный формат, особенно в Казахстане. Официальные домены kaspi.kz, forte.kz, halyk.kz, jusan.kz, onay, eurasian bank и подобные — легитимные. Не считай такое сообщение подозрительным ТОЛЬКО из-за наличия ссылки или кода подтверждения.
 
+Б2. РЕКЛАМА И РАССЫЛКИ С ОФИЦИАЛЬНЫХ ДОМЕНОВ — SAFE:
+   Рекламные и маркетинговые сообщения банков и сервисов (акции, кэшбэк, кредиты, депозиты, новые карты), в которых все ссылки ведут на официальный домен бренда или его поддомен (forte.kz, www.forte.kz, m.forte.kz, kaspi.kz, halyk.kz и т.п.) и НЕТ просьбы ввести пароль, код, данные карты или ИИН, — это verdict "safe", flags пустой.
+   - Сроки акции ("до 30 ноября", "успейте", "ограниченное предложение") — обычный маркетинг, а НЕ давление или срочность в смысле фишинга. Не добавляй их в flags.
+   - Сам факт рекламы, наличие ссылки или призыва "оформите", "подробнее" — НЕ признак фишинга.
+   - Официальным считается ТОЛЬКО точный домен бренда или его поддомен (что-то.forte.kz). Похожие домены — forte-kz.com, forte.kz.bonus-site.ru, f0rte.kz, fortebank-kz.net, короткие ссылки (bit.ly и т.п.) — ПОДОЗРИТЕЛЬНЫ, к ним это правило не относится.
+
 В. КОМБИНАЦИЯ ПРИЗНАКОВ, А НЕ ОДИНОЧНЫЕ НЕЙТРАЛЬНЫЕ ФАКТОРЫ:
    Признаком фишинга считается КОМБИНАЦИЯ: подозрительный/незнакомый домен + давление/срочность + просьба ввести данные. Наличие только одного нейтрального признака (просто ссылка, просто код, просто упоминание банка) НЕ должно давать высокий confidence и НЕ должно делать verdict "suspicious" или "dangerous".
 
@@ -74,6 +80,12 @@ const SYSTEM_PROMPTS: Record<Lang, string> = {
 Ә. ТРАНЗАКЦИЯЛЫҚ ХАБАРЛАМАЛАР — ӘДЕТТЕ ЛЕГИТИМДІ:
    Растау коды бар қысқа SMS/хаттар, төлем, жеткізілу, есепке алу туралы хабарламалар — Қазақстандағы типтік легитимді формат. kaspi.kz, forte.kz, halyk.kz, jusan.kz, onay, eurasian bank сияқты ресми домендер — легитимді. Мұндай хабарламаны тек сілтеме немесе растау коды бар болғаны үшін ғана күдікті деп санамаңыз.
 
+Ә2. РЕСМИ ДОМЕНДЕРДЕН КЕЛГЕН ЖАРНАМА МЕН ТАРАТЫЛЫМДАР — SAFE:
+   Банктер мен сервистердің жарнамалық және маркетингтік хабарламалары (акциялар, кэшбэк, несиелер, депозиттер, жаңа карталар), егер барлық сілтемелер брендтің ресми доменіне немесе оның субдоменіне (forte.kz, www.forte.kz, m.forte.kz, kaspi.kz, halyk.kz және т.б.) апарса және құпиясөз, код, карта деректері немесе ЖСН енгізу талабы ЖОҚ болса — verdict "safe", flags бос.
+   - Акция мерзімдері ("30 қарашаға дейін", "үлгеріңіз", "шектеулі ұсыныс") — әдеттегі маркетинг, фишинг мағынасындағы қысым немесе асығыстық ЕМЕС. Оларды flags-қа қоспаңыз.
+   - Жарнаманың өзі, сілтеменің болуы немесе "рәсімдеңіз", "толығырақ" сияқты шақырулар — фишинг белгісі ЕМЕС.
+   - Ресми деп ТЕК брендтің нақты домені немесе оның субдомені (бірдеңе.forte.kz) саналады. Ұқсас домендер — forte-kz.com, forte.kz.bonus-site.ru, f0rte.kz, fortebank-kz.net, қысқартылған сілтемелер (bit.ly және т.б.) — КҮДІКТІ, бұл ереже оларға қолданылмайды.
+
 Б. БЕЛГІЛЕРДІҢ КОМБИНАЦИЯСЫ, ЖЕКЕЛЕНГЕН БЕЙТАРАП ФАКТОРЛАР ЕМЕС:
    Фишинг белгісі — КОМБИНАЦИЯ: күдікті/беймәлім домен + қысым/асығыстық + деректерді енгізу талабы. Тек бір бейтарап белгінің (жай сілтеме, жай код, жай банк атауы) болуы жоғары confidence бермейді және verdict "suspicious" немесе "dangerous" жасамайды.
 
@@ -119,6 +131,12 @@ A. LEGITIMATE PROTECTIVE PHRASES — NOT A PHISHING SIGN:
 
 B. TRANSACTIONAL MESSAGES — USUALLY LEGITIMATE:
    Short SMS/emails with a verification code, payment notification, delivery, deposit — typical legitimate format, especially in Kazakhstan. Official domains kaspi.kz, forte.kz, halyk.kz, jusan.kz, onay, eurasian bank and similar are legitimate. Do not consider such a message suspicious SOLELY because of a link or verification code.
+
+B2. ADVERTISING AND NEWSLETTERS FROM OFFICIAL DOMAINS — SAFE:
+   Promotional and marketing messages from banks and services (promotions, cashback, loans, deposits, new cards) where every link points to the brand's official domain or its subdomain (forte.kz, www.forte.kz, m.forte.kz, kaspi.kz, halyk.kz, etc.) and there is NO request to enter a password, code, card details or IIN — verdict "safe", flags empty.
+   - Promotion deadlines ("until November 30", "hurry", "limited offer") are ordinary marketing, NOT pressure or urgency in the phishing sense. Do not add them to flags.
+   - Being an advertisement, containing a link, or a call to action like "apply now", "learn more" is NOT a phishing sign.
+   - ONLY the brand's exact domain or its subdomain (something.forte.kz) counts as official. Lookalike domains — forte-kz.com, forte.kz.bonus-site.ru, f0rte.kz, fortebank-kz.net, URL shorteners (bit.ly, etc.) — are SUSPICIOUS, and this rule does not apply to them.
 
 C. COMBINATION OF SIGNS, NOT SINGLE NEUTRAL FACTORS:
    A phishing sign is a COMBINATION: suspicious/unfamiliar domain + pressure/urgency + request for data. Having only one neutral sign (just a link, just a code, just a mention of a bank) should NOT yield high confidence and should NOT make the verdict "suspicious" or "dangerous".
@@ -235,7 +253,6 @@ Deno.serve(async (req: Request) => {
         return new Response(
           JSON.stringify({
             error: "rate_limit_exceeded",
-            message: "Вы достигли дневного лимита бесплатных проверок (5 в день). Попробуйте снова завтра.",
             remaining: 0,
             limit: DAILY_LIMIT,
           }),
@@ -285,7 +302,7 @@ Deno.serve(async (req: Request) => {
           { role: "system", content: SYSTEM_PROMPTS[effectiveLang] },
           { role: "user", content: USER_PROMPTS[effectiveLang].replace("{email}", emailText) },
         ],
-        temperature: 0.2,
+        temperature: 0,
         response_format: { type: "json_object" },
       }),
     });
@@ -362,8 +379,8 @@ Deno.serve(async (req: Request) => {
       confidence,
       flags,
       recommendation: typeof parsed.recommendation === "string" ? parsed.recommendation : "",
-      remaining: isAdmin ? DAILY_LIMIT : remaining,
-      limit: DAILY_LIMIT,
+      // Admin gets no counter at all; regular users get remaining/limit.
+      ...(isAdmin ? { admin: true } : { remaining, limit: DAILY_LIMIT }),
     };
 
     return new Response(

@@ -14,7 +14,7 @@
   "analyzeButton": "Проверить",
   "analyzing": "Анализирую…",
   "remaining": "Осталось проверок сегодня:",
-  "of": "из",
+  "remainingOf": "{remaining} из {limit}",
   "verdictLabel": "Вердикт",
   "confidenceLabel": "Уверенность",
   "flagsTitle": "Обнаруженные признаки",

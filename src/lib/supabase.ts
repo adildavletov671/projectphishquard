@@ -22,7 +22,8 @@ export async function analyzeEmail(
   const body = await response.json().catch(() => ({}));
 
   if (response.status === 429 || body?.error === "rate_limit_exceeded") {
-    throw new RateLimitError(body?.message ?? "rate_limit_exceeded");
+    // Text comes from the frontend translations, never from the server.
+    throw new RateLimitError();
   }
 
   if (!response.ok) {
@@ -43,12 +44,13 @@ export async function analyzeEmail(
     recommendation: body.recommendation,
     remaining: typeof body.remaining === "number" ? body.remaining : undefined,
     limit: typeof body.limit === "number" ? body.limit : undefined,
+    admin: body.admin === true,
   };
 }
 
 export class RateLimitError extends Error {
-  constructor(message: string) {
-    super(message);
+  constructor() {
+    super("rate_limit_exceeded");
     this.name = "RateLimitError";
   }
 }
@@ -67,4 +69,5 @@ export interface AnalysisResult {
   recommendation: string;
   remaining?: number;
   limit?: number;
+  admin?: boolean;
 }

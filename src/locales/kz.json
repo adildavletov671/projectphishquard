@@ -14,7 +14,7 @@
   "analyzeButton": "Тексеру",
   "analyzing": "Тексеріліп жатыр…",
   "remaining": "Бүгін қалған тексерістер:",
-  "of": "ден",
+  "remainingOf": "{limit}-тен {remaining}",
   "verdictLabel": "Үкім",
   "confidenceLabel": "Сенімділік",
   "flagsTitle": "Анықталған белгілер",

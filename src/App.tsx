@@ -98,7 +98,19 @@ export default function App() {
   const [rateLimited, setRateLimited] = useState(false);
   const [remaining, setRemaining] = useState<number | null>(null);
   const [limit] = useState(5);
+  const [isAdmin, setIsAdmin] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
+  // Incremented on every new request and on language change; a response whose id
+  // no longer matches is stale (e.g. it is in the old language) and is dropped.
+  const requestIdRef = useRef(0);
+
+  function changeLang(next: Language) {
+    if (next === lang) return;
+    requestIdRef.current += 1;
+    setLang(next);
+    setResult(null);
+    setLoading(false);
+  }
 
   function scrollToForm() {
     formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -108,30 +120,34 @@ export default function App() {
     e.preventDefault();
     if (loading) return;
     if (!emailText.trim()) {
-      setError(t("errorEmpty"));
+      setError("errorEmpty");
       setResult(null);
       return;
     }
+    const requestId = ++requestIdRef.current;
     setLoading(true);
     setError(null);
     setResult(null);
     setRateLimited(false);
     try {
       const res = await analyzeEmail(emailText, adminKey, lang);
+      if (requestId !== requestIdRef.current) return;
       setResult(res);
+      setIsAdmin(res.admin === true);
       if (typeof res.remaining === "number") {
         setRemaining(res.remaining);
       }
     } catch (err) {
+      if (requestId !== requestIdRef.current) return;
       if (err instanceof RateLimitError) {
-        setError(err.message === "rate_limit_exceeded" ? t("errorRateLimit") : err.message);
+        setError("errorRateLimit");
         setRateLimited(true);
         setRemaining(0);
       } else {
-        setError(t("errorGeneric"));
+        setError("errorGeneric");
       }
     } finally {
-      setLoading(false);
+      if (requestId === requestIdRef.current) setLoading(false);
     }
   }
 
@@ -149,7 +165,7 @@ export default function App() {
       {/* Top glow */}
       <div className="pointer-events-none fixed inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-cyan-400/60 to-transparent" />
 
-      <LanguageSwitcher lang={lang} setLang={setLang} />
+      <LanguageSwitcher lang={lang} setLang={changeLang} />
 
       <div className="relative mx-auto max-w-3xl px-5 py-12 sm:py-16">
         {/* Header */}
@@ -235,15 +251,13 @@ export default function App() {
             )}
           </button>
 
-          {remaining !== null && !rateLimited && (
-            <p className="mt-3 text-center text-xs text-slate-500">
-              {t("remaining")} <span className="font-semibold text-cyan-400">{remaining}</span> {t("of")} {limit}
-            </p>
-          )}
-          {rateLimited && (
-            <p className="mt-3 text-center text-xs text-amber-400/80">
-              {t("remaining")} <span className="font-semibold">0</span> {t("of")} {limit}
-            </p>
+          {!isAdmin && (rateLimited || remaining !== null) && (
+            <RemainingCounter
+              remaining={rateLimited ? 0 : remaining ?? 0}
+              limit={limit}
+              rateLimited={rateLimited}
+              t={t}
+            />
           )}
         </form>
 
@@ -251,7 +265,7 @@ export default function App() {
         {error && (
           <div className={`mt-6 flex items-center gap-2.5 rounded-xl border px-4 py-3 text-sm ${rateLimited ? "border-amber-500/40 bg-amber-950/30 text-amber-300" : "border-red-500/40 bg-red-950/30 text-red-300"}`}>
             <AlertTriangle className="h-4 w-4 shrink-0" />
-            {error}
+            {t(error)}
           </div>
         )}
 
@@ -341,7 +355,7 @@ function FlagsList({
                 <Icon className="h-4 w-4 text-cyan-300" />
               </div>
               <div className="min-w-0">
-                <p className="text-sm font-semibold text-slate-200">{flag.type}</p>
+                <p className="text-sm font-semibold text-slate-200">{capitalize(flag.type)}</p>
                 <p className="mt-0.5 text-sm leading-relaxed text-slate-400">
                   {flag.description}
                 </p>
@@ -394,6 +408,35 @@ function RecommendationBlock({
         <p className="mt-1 text-sm leading-relaxed text-slate-300">{recommendation}</p>
       </div>
     </div>
+  );
+}
+
+function capitalize(s: string) {
+  return s ? s.charAt(0).toLocaleUpperCase() + s.slice(1) : s;
+}
+
+// Counter text comes from the "remainingOf" template, e.g. "{remaining} из {limit}"
+// (RU/EN) or "{limit}-тен {remaining}" (KZ), so each language keeps its own word order.
+function RemainingCounter({
+  remaining,
+  limit,
+  rateLimited,
+  t,
+}: {
+  remaining: number;
+  limit: number;
+  rateLimited: boolean;
+  t: (key: string) => string;
+}) {
+  const [before, after = ""] = t("remainingOf")
+    .replace("{limit}", String(limit))
+    .split("{remaining}");
+  return (
+    <p className={`mt-3 text-center text-xs ${rateLimited ? "text-amber-400/80" : "text-slate-500"}`}>
+      {t("remaining")} {before}
+      <span className={`font-semibold ${rateLimited ? "" : "text-cyan-400"}`}>{remaining}</span>
+      {after}
+    </p>
   );
 }
 
