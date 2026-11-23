@@ -1,57 +1,59 @@
 # PhishGuard
 
-Веб-сервис для проверки подозрительных писем, SMS и сообщений в мессенджерах на фишинг и социальную инженерию. Пользователь вставляет текст, языковая модель возвращает вердикт (`dangerous` / `suspicious` / `safe`), уверенность, список найденных признаков и рекомендацию, что делать. Ориентирован на Казахстан: учитывает местные банки и сервисы (Kaspi, Halyk, Forte, Onay), интерфейс и ответы на русском, казахском и английском.
+**English** | [Русский](README.ru.md)
 
-**Демо:** https://projectphishquard.vercel.app
+A web service that checks suspicious emails, text messages and chat messages for phishing and social engineering. Paste the text, and an LLM returns a verdict (`dangerous` / `suspicious` / `safe`), a confidence score, the red flags it found, and advice on what to do next. Built for Kazakhstan: it knows local banks and services (Kaspi, Halyk, Forte, Onay), and both the UI and the analysis are available in Russian, Kazakh and English.
 
-## Стек
+**Live demo:** https://projectphishquard.vercel.app
 
-- **Фронтенд:** React 18, TypeScript, Vite, Tailwind CSS
-- **Бэкенд:** Supabase Edge Function (Deno, TypeScript) и Postgres
-- **LLM:** OpenRouter, модель `openai/gpt-4o-mini`, `temperature: 0`, ответ в формате JSON
-- **Хостинг:** Vercel (автодеплой фронтенда из `main`), Supabase CLI для миграций и деплоя функции
+## Tech stack
 
-## Архитектура
+- **Frontend:** React 18, TypeScript, Vite, Tailwind CSS
+- **Backend:** Supabase Edge Function (Deno, TypeScript) and Postgres
+- **LLM:** `openai/gpt-4o-mini` via OpenRouter, `temperature: 0`, JSON output
+- **Hosting:** Vercel (frontend auto-deploys from `main`); Supabase CLI for migrations and function deploys
+
+## Architecture
 
 ```
-Браузер (React) ──► Supabase Edge Function `analyze-email` ──► OpenRouter (LLM)
+Browser (React) ──► Supabase Edge Function `analyze-email` ──► OpenRouter (LLM)
                           │
-                          └──► Postgres: лимит запросов по IP, счётчик проверок
+                          └──► Postgres: per-IP rate limit, total checks counter
 ```
 
-- Фронтенд обращается только к Edge Function. Ключ LLM-провайдера хранится в секретах функции и в браузер не попадает.
-- Функция проверяет лимит (5 проверок в день на IP), собирает промпт на языке интерфейса, вызывает модель, валидирует JSON-ответ и обновляет счётчик.
-- Ошибки сервер возвращает кодами (например, `rate_limit_exceeded`), тексты подставляет фронтенд из файлов локализации.
+- The frontend talks only to the Edge Function. The LLM provider key lives in the function's secrets and never reaches the browser.
+- The function enforces the rate limit (5 checks per IP per day), builds the prompt in the UI language, calls the model, validates the JSON response and updates the counter.
+- Errors are returned as codes (e.g. `rate_limit_exceeded`); the frontend maps them to localized messages.
 
-На этапе прототипа ИИ-ассистент сообщил о возможной утечке ключа LLM-провайдера во фронтенд. Проверка кода это опровергла: фронтенд с самого начала обращался только к Edge Function, ключ всегда хранился на сервере. После переноса бэкенда в собственный проект Supabase старый ключ всё равно отозван.
+During prototyping, an AI coding assistant reported that the LLM provider key might be exposed in the frontend. A code review showed otherwise: the frontend had always gone through the Edge Function, and the key had never left the server. The old key was still revoked after the backend moved to a dedicated Supabase project.
 
-## Калибровка промпта против ложных срабатываний
+## Tuning the prompt against false positives
 
-Первая версия помечала как подозрительные обычные банковские SMS. Промпт доработан на реальных примерах:
+Early versions flagged ordinary bank SMS as suspicious. The prompt was refined using real-world messages:
 
-- Вердикт строится на **комбинации** факторов (поддельный домен + давление + просьба ввести данные). Один нейтральный признак не даёт высокую уверенность, пустой список признаков всегда означает `safe`.
-- Фраза «никому не сообщайте код, даже сотруднику банка» считается признаком **легитимности**, а не угрозы.
-- Транзакционные SMS и реклама банков со ссылками только на официальный домен или его поддомен (`forte.kz`, `что-то.forte.kz`) — `safe`, сроки акции не считаются давлением.
-- При этом похожие домены (`forte-kz.com`, `f0rte.kz`, `forte.kz.bonus-credit.ru`) и сокращатели ссылок под это исключение не попадают: правило нельзя обойти поддельной ссылкой.
-- Все правила продублированы в трёх языковых версиях промпта и проверяются набором регрессионных сценариев (банковский фишинг, BEC-атака «начальник просит срочно оплатить», «мама в больнице», «друг с нового номера», легитимные коды подтверждения и реклама).
+- The verdict depends on a **combination** of signals (lookalike domain + pressure + a request for credentials). A single neutral signal can't produce high confidence, and an empty list of red flags always means `safe`.
+- "Never share this code with anyone, not even a bank employee" is treated as a sign of a **legitimate** message, not a threat.
+- Transactional SMS and bank promotions whose links all point to the official domain or its subdomains (`forte.kz`, `something.forte.kz`) are `safe`; a promotion deadline is marketing, not pressure.
+- Lookalike domains (`forte-kz.com`, `f0rte.kz`, `forte.kz.bonus-credit.ru`) and URL shorteners don't qualify for this exception, so it can't be bypassed with a fake link.
+- Every rule exists in all three language versions of the prompt and is covered by regression scenarios: bank phishing, BEC ("the CEO is in a meeting, pay this supplier now"), "Mom is in the hospital, send money", "a friend texting from a new number", plus legitimate verification codes and bank ads.
 
-## Найденные и закрытые уязвимости
+## Vulnerabilities found and fixed
 
-- **Накрутка счётчика проверок.** Postgres по умолчанию выдаёт право `EXECUTE` на новые функции роли `PUBLIC`, поэтому любой, у кого есть публичный anon-ключ, мог вызвать `rpc('increment_total_checks')` и накрутить статистику. Право отозвано у `PUBLIC`, `anon` и `authenticated` и оставлено только `service_role`, которой пользуется Edge Function. Заодно для `SECURITY DEFINER`-функции зафиксирован `search_path`, чтобы её нельзя было подменить объектами из другой схемы. См. [миграцию](supabase/migrations/20261109120000_harden_increment_total_checks.sql).
+- **Inflating the checks counter.** By default, Postgres grants `EXECUTE` on new functions to `PUBLIC`, so anyone with the public anon key could call `rpc('increment_total_checks')` and inflate the stats. Execution was revoked from `PUBLIC`, `anon` and `authenticated` and granted only to `service_role`, which the Edge Function uses. The `SECURITY DEFINER` function also got a pinned `search_path`, so it can't be hijacked by objects in another schema. See the [migration](supabase/migrations/20261109120000_harden_increment_total_checks.sql).
 
-## Известные ограничения
+## Known limitations
 
-- **Лимит по IP можно обойти подменой заголовка.** Функция берёт IP клиента из первого значения `X-Forwarded-For`. Если прокси перед функцией не перезаписывает этот заголовок, а дописывает к нему свой адрес, клиент может подставить произвольный IP и получить новый дневной лимит. Нужно выяснить, как заголовок формирует шлюз Supabase, и брать доверенное значение (например, последний адрес, добавленный прокси).
+- **The per-IP limit may be bypassable via header spoofing.** The function takes the client IP from the first entry of `X-Forwarded-For`. If the proxy in front of the function appends its own address instead of overwriting the header, a client can send an arbitrary IP and get a fresh daily quota. Next step: confirm how the Supabase gateway builds this header and use a trusted value (e.g. the last address added by the proxy).
 
-## Локальный запуск
+## Running locally
 
-Создайте `.env` с переменными `VITE_SUPABASE_URL` и `VITE_SUPABASE_ANON_KEY`, затем:
+Create a `.env` file with `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`, then:
 
 ```bash
 npm install
 npm run dev
 ```
 
-## История
+## Background
 
-MVP был сгенерирован в Bolt.new, после чего бэкенд вручную перенесён в собственный проект Supabase, а код развивается самостоятельно.
+The MVP was generated with Bolt.new; the backend was then migrated by hand to a dedicated Supabase project, and the code has been developed independently since.
