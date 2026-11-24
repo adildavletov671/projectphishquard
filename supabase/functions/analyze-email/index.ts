@@ -175,6 +175,20 @@ const USER_PROMPTS: Record<Lang, string> = {
   en: "Analyze the following email for phishing signs:\\n\\n{email}",
 };
 
+// Client IP for rate limiting.
+//
+// Taking the FIRST entry of X-Forwarded-For is safe here ONLY because of how the
+// Supabase gateway behaves (verified by a live test on 2026-11-25):
+//   - Cloudflare in front of Supabase DISCARDS any client-sent X-Forwarded-For and
+//     writes its own: "<real client IP>,<real client IP>, <AWS proxy IP>".
+//     A spoofed "X-Forwarded-For: 1.2.3.4" never reaches this function.
+//   - Client-sent X-Real-IP is stripped; a client-sent CF-Connecting-IP is rejected
+//     by Cloudflare (error 1000). CF-Connecting-IP always equals the real client IP.
+//   - True-Client-IP and Forwarded are passed through UNCHANGED from the client,
+//     so they are attacker-controlled and must never be used here.
+// If the gateway ever starts APPENDING to a client-sent X-Forwarded-For instead of
+// overwriting it, the first entry becomes attacker-controlled and the daily limit
+// can be bypassed. Re-run the spoofing test after any Supabase infrastructure change.
 function getClientIp(req: Request): string {
   const fwd = req.headers.get("x-forwarded-for");
   if (fwd) {

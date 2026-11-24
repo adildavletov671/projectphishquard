@@ -41,9 +41,9 @@ Early versions flagged ordinary bank SMS as suspicious. The prompt was refined u
 
 - **Inflating the checks counter.** By default, Postgres grants `EXECUTE` on new functions to `PUBLIC`, so anyone with the public anon key could call `rpc('increment_total_checks')` and inflate the stats. Execution was revoked from `PUBLIC`, `anon` and `authenticated` and granted only to `service_role`, which the Edge Function uses. The `SECURITY DEFINER` function also got a pinned `search_path`, so it can't be hijacked by objects in another schema. See the [migration](supabase/migrations/20261109120000_harden_increment_total_checks.sql).
 
-## Known limitations
+## Checked and not vulnerable
 
-- **The per-IP limit may be bypassable via header spoofing.** The function takes the client IP from the first entry of `X-Forwarded-For`. If the proxy in front of the function appends its own address instead of overwriting the header, a client can send an arbitrary IP and get a fresh daily quota. Next step: confirm how the Supabase gateway builds this header and use a trusted value (e.g. the last address added by the proxy).
+- **Bypassing the per-IP limit by spoofing `X-Forwarded-For`.** The function takes the client IP from the first entry of `X-Forwarded-For`, which would be attacker-controlled if the proxy appended to a client-sent header. A live test against the deployed function disproved this: requests with different fake IPs in `X-Forwarded-For` all decremented the same counter, and the 6th request got `429`. Temporary header logging showed why: Cloudflare in front of Supabase discards the client's `X-Forwarded-For` and writes its own (`<client IP>,<client IP>, <AWS proxy IP>`), strips `X-Real-IP` and rejects a client-sent `CF-Connecting-IP`. `True-Client-IP` and `Forwarded` do pass through unchanged, so the code never reads them. The assumption is documented next to `getClientIp` in the function, and the test should be re-run if Supabase changes its gateway.
 
 ## Running locally
 
