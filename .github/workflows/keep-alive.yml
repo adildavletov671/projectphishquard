@@ -1,0 +1,41 @@
+# Keeps the free-tier Supabase project from being paused for inactivity.
+# Makes a read-only request to the `stats` table via the REST API with the anon key.
+# Fails (and GitHub emails the repo owner) if the response is not HTTP 200.
+name: Supabase keep-alive
+
+on:
+  schedule:
+    # 06:00 UTC on every 3rd day of the month (gap is never longer than 3 days)
+    - cron: "0 6 */3 * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Ping Supabase REST API
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_ANON_KEY" ]; then
+            echo "::error::Secrets SUPABASE_URL and/or SUPABASE_ANON_KEY are not set"
+            exit 1
+          fi
+
+          status=$(curl -sS -o body.json -w '%{http_code}' --max-time 30 \
+            "${SUPABASE_URL%/}/rest/v1/stats?select=id&limit=1" \
+            -H "apikey: $SUPABASE_ANON_KEY" \
+            -H "Authorization: Bearer $SUPABASE_ANON_KEY") || status="000"
+
+          echo "HTTP status: $status"
+          if [ "$status" != "200" ]; then
+            echo "::error::Supabase responded with HTTP $status (project may be paused or keys invalid)"
+            head -c 300 body.json 2>/dev/null || true
+            exit 1
+          fi
+          echo "Supabase is awake."
